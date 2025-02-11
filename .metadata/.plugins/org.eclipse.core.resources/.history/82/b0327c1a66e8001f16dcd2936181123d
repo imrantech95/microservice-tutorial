@@ -1,0 +1,77 @@
+package com.aitech.user.serviceImpl;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import com.aitech.user.customException.ResourceNotFoundException;
+import com.aitech.user.entiry.Rating;
+import com.aitech.user.entiry.User;
+import com.aitech.user.repository.UserRepository;
+import com.aitech.user.service.UserService;
+
+@Service
+public class UserServiceImpl implements UserService {
+
+	@Autowired
+	UserRepository userRepository;
+	
+	@Autowired
+	RestTemplate restTemplate;
+	
+	private Logger logger=LoggerFactory.getLogger(UserServiceImpl.class);
+
+	@Override
+	public User saveUser(User user) {
+		return userRepository.save(user);
+	}
+
+	@Override
+	public List<User> getAllUser() {
+		return userRepository.findAll();
+	}
+
+	//get single user
+	@Override
+	public User getUser(Integer userId) {
+		
+		//get user for the database with the help of user repository 
+		User user= userRepository.findById(userId).orElseThrow(()-> new ResourceNotFoundException("User not found with userId "+userId));
+		
+		//fetch rating of the above user from RATING-SERVICE
+		//http://localhost:8083/api-rating/user/1
+		
+		@SuppressWarnings("unchecked")
+		ArrayList<Rating> ratingsOfUser= restTemplate.getForObject("http://localhost:8083/api-rating/user/1",ArrayList.class);
+		
+		logger.info("{} ",ratingsOfUser);
+		user.setRating(ratingsOfUser);
+		
+		return user;
+	}
+
+	@Override
+	public User updateUser(Integer userId, User updatedUser) {
+		return userRepository.findById(userId).map(existingUser -> {
+			existingUser.setName(updatedUser.getName());
+			existingUser.setEmail(updatedUser.getEmail());
+			existingUser.setAbout(updatedUser.getAbout());
+			// Add other fields as needed
+			return userRepository.save(existingUser);
+		}).orElseThrow(() -> new ResourceNotFoundException("User not found with id " + userId));
+	}
+
+	@Override
+	public void deleteUser(Integer userId) {
+		if (!userRepository.existsById(userId)) {
+			throw new ResourceNotFoundException("User not found with id :" + userId);
+		}
+		userRepository.deleteById(userId);
+
+	}
+}
